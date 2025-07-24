@@ -1,5 +1,5 @@
 
-use crate::swqos::common::{poll_transaction_confirmation, serialize_transaction_and_encode, FormatBase64VersionedTransaction};
+use crate::swqos::common::{serialize_transaction_and_encode, FormatBase64VersionedTransaction};
 use rand::seq::IndexedRandom;
 use reqwest::Client;
 use serde_json::json;
@@ -7,6 +7,7 @@ use std::{sync::Arc, time::Instant};
 
 use std::time::Duration;
 use solana_transaction_status::UiTransactionEncoding;
+use solana_sdk::signature::Signature;
 
 use anyhow::Result;
 use solana_sdk::transaction::VersionedTransaction;
@@ -25,12 +26,12 @@ pub struct JitoClient {
 
 #[async_trait::async_trait]
 impl SwqosClientTrait for JitoClient {
-    async fn send_transaction(&self, trade_type: TradeType, transaction: &VersionedTransaction) -> Result<()> {
-        self.send_transaction(trade_type, transaction).await
+    async fn send_transaction(&self, trade_type: TradeType, transaction: &VersionedTransaction) -> Result<Signature> {
+        JitoClient::send_transaction(self, trade_type, transaction).await
     }
 
-    async fn send_transactions(&self, trade_type: TradeType, transactions: &Vec<VersionedTransaction>) -> Result<()> {
-        self.send_transactions(trade_type, transactions).await
+    async fn send_transactions(&self, trade_type: TradeType, transactions: &Vec<VersionedTransaction>) -> Result<Vec<Signature>> {
+        JitoClient::send_transactions(self, trade_type, transactions).await
     }
 
     fn get_tip_account(&self) -> Result<String> {
@@ -61,7 +62,7 @@ impl JitoClient {
         Self { rpc_client: Arc::new(rpc_client), endpoint, auth_token, http_client }
     }
 
-    pub async fn send_transaction(&self, trade_type: TradeType, transaction: &VersionedTransaction) -> Result<()> {
+    pub async fn send_transaction(&self, trade_type: TradeType, transaction: &VersionedTransaction) -> Result<Signature> {
         let start_time = Instant::now();
         let (content, signature) = serialize_transaction_and_encode(transaction, UiTransactionEncoding::Base64).await?;
         println!(" 交易编码base64: {:?}", start_time.elapsed());
@@ -92,23 +93,25 @@ impl JitoClient {
                 println!(" jito{}提交: {:?}", trade_type, start_time.elapsed());
             } else if let Some(_error) = response_json.get("error") {
                 eprintln!(" jito{}提交失败: {:?}", trade_type, _error);
+                return Err(anyhow::anyhow!("jito submission failed: {:?}", _error));
             }
         }
 
-        let start_time: Instant = Instant::now();
-        match poll_transaction_confirmation(&self.rpc_client, signature).await {
-            Ok(_) => (),
-            Err(_) => (),
-        }
-
-        println!(" jito{}确认: {:?}", trade_type, start_time.elapsed());
-
-        Ok(())
+        println!(" jito{}签名: {:?}", trade_type, signature);
+        Ok(signature)
     }
 
-    pub async fn send_transactions(&self, trade_type: TradeType, transactions: &Vec<VersionedTransaction>) -> Result<()> {
+    pub async fn send_transactions(&self, trade_type: TradeType, transactions: &Vec<VersionedTransaction>) -> Result<Vec<Signature>> {
         let start_time = Instant::now();
         let txs_base64 = transactions.iter().map(|tx| tx.to_base64_string()).collect::<Vec<String>>();
+        
+        // Extract signatures from all transactions
+        let mut signatures = Vec::new();
+        for tx in transactions {
+            let (_, signature) = serialize_transaction_and_encode(tx, UiTransactionEncoding::Base64).await?;
+            signatures.push(signature);
+        }
+        
         let body = serde_json::json!({
             "jsonrpc": "2.0",
             "method": "sendBundle",
@@ -133,9 +136,11 @@ impl JitoClient {
                 println!(" jito{}提交: {:?}", trade_type, start_time.elapsed());
             } else if let Some(_error) = response_json.get("error") {
                 eprintln!(" jito{}提交失败: {:?}", trade_type, _error);
+                return Err(anyhow::anyhow!("jito bundle submission failed: {:?}", _error));
             }
         }
 
-        Ok(())
+        println!(" jito{}签名数量: {}", trade_type, signatures.len());
+        Ok(signatures)
     }
 }

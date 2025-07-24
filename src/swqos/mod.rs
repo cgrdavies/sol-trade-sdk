@@ -8,7 +8,7 @@ pub mod bloxroute;
 
 use std::sync::Arc;
 
-use solana_sdk::{commitment_config::CommitmentConfig, transaction::VersionedTransaction};
+use solana_sdk::{commitment_config::CommitmentConfig, transaction::VersionedTransaction, signature::Signature};
 use tokio::sync::RwLock;
 
 use anyhow::Result;
@@ -53,8 +53,8 @@ pub type SwqosClient = dyn SwqosClientTrait + Send + Sync + 'static;
 
 #[async_trait::async_trait]
 pub trait SwqosClientTrait {
-    async fn send_transaction(&self, trade_type: TradeType, transaction: &VersionedTransaction) -> Result<()>;
-    async fn send_transactions(&self, trade_type: TradeType, transactions: &Vec<VersionedTransaction>) -> Result<()>;
+    async fn send_transaction(&self, trade_type: TradeType, transaction: &VersionedTransaction) -> Result<Signature>;
+    async fn send_transactions(&self, trade_type: TradeType, transactions: &Vec<VersionedTransaction>) -> Result<Vec<Signature>>;
     fn get_tip_account(&self) -> Result<String>;
     fn get_swqos_type(&self) -> SwqosType;
 }

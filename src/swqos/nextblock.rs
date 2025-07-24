@@ -1,4 +1,4 @@
-use crate::swqos::common::{poll_transaction_confirmation, serialize_transaction_and_encode};
+use crate::swqos::common::serialize_transaction_and_encode;
 use rand::seq::IndexedRandom;
 use reqwest::Client;
 use serde_json::json;
@@ -6,6 +6,7 @@ use std::{sync::Arc, time::Instant};
 
 use std::time::Duration;
 use solana_transaction_status::UiTransactionEncoding;
+use solana_sdk::signature::Signature;
 
 use anyhow::Result;
 use solana_sdk::transaction::VersionedTransaction;
@@ -24,12 +25,12 @@ pub struct NextBlockClient {
 
 #[async_trait::async_trait]
 impl SwqosClientTrait for NextBlockClient {
-    async fn send_transaction(&self, trade_type: TradeType, transaction: &VersionedTransaction) -> Result<()> {
-        self.send_transaction(trade_type, transaction).await
+    async fn send_transaction(&self, trade_type: TradeType, transaction: &VersionedTransaction) -> Result<Signature> {
+        NextBlockClient::send_transaction(self, trade_type, transaction).await
     }
 
-    async fn send_transactions(&self, trade_type: TradeType, transactions: &Vec<VersionedTransaction>) -> Result<()> {
-        self.send_transactions(trade_type, transactions).await
+    async fn send_transactions(&self, trade_type: TradeType, transactions: &Vec<VersionedTransaction>) -> Result<Vec<Signature>> {
+        NextBlockClient::send_transactions(self, trade_type, transactions).await
     }
 
     fn get_tip_account(&self) -> Result<String> {
@@ -57,7 +58,7 @@ impl NextBlockClient {
         Self { rpc_client: Arc::new(rpc_client), endpoint, auth_token, http_client }
     }
 
-    pub async fn send_transaction(&self, trade_type: TradeType, transaction: &VersionedTransaction) -> Result<()> {
+    pub async fn send_transaction(&self, trade_type: TradeType, transaction: &VersionedTransaction) -> Result<Signature> {
         let start_time = Instant::now();
         let (content, signature) = serialize_transaction_and_encode(transaction, UiTransactionEncoding::Base64).await?;
         println!(" 交易编码base64: {:?}", start_time.elapsed());
@@ -83,24 +84,20 @@ impl NextBlockClient {
                 println!(" nextblock{}提交: {:?}", trade_type, start_time.elapsed());
             } else if let Some(_error) = response_json.get("error") {
                 eprintln!(" nextblock{}提交失败: {:?}", trade_type, _error);
+                return Err(anyhow::anyhow!("nextblock submission failed: {:?}", _error));
             }
         }
 
-        let start_time: Instant = Instant::now();
-        match poll_transaction_confirmation(&self.rpc_client, signature).await {
-            Ok(_) => (),
-            Err(_) => (),
-        }
-
-        println!(" nextblock{}确认: {:?}", trade_type, start_time.elapsed());
-
-        Ok(())
+        println!(" nextblock{}签名: {:?}", trade_type, signature);
+        Ok(signature)
     }
 
-    pub async fn send_transactions(&self, trade_type: TradeType, transactions: &Vec<VersionedTransaction>) -> Result<()> {
+    pub async fn send_transactions(&self, trade_type: TradeType, transactions: &Vec<VersionedTransaction>) -> Result<Vec<Signature>> {
+        let mut signatures = Vec::new();
         for transaction in transactions {
-            self.send_transaction(trade_type, transaction).await?;
+            let signature = self.send_transaction(trade_type, transaction).await?;
+            signatures.push(signature);
         }
-        Ok(())
+        Ok(signatures)
     }
 }

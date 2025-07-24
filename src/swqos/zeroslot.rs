@@ -1,4 +1,4 @@
-use crate::swqos::common::{poll_transaction_confirmation, serialize_transaction_and_encode};
+use crate::swqos::common::serialize_transaction_and_encode;
 use rand::seq::IndexedRandom;
 use reqwest::Client;
 use serde_json::json;
@@ -6,6 +6,7 @@ use std::{sync::Arc, time::Instant};
 
 use std::time::Duration;
 use solana_transaction_status::UiTransactionEncoding;
+use solana_sdk::signature::Signature;
 
 use anyhow::Result;
 use solana_sdk::transaction::VersionedTransaction;
@@ -25,12 +26,12 @@ pub struct ZeroSlotClient {
 
 #[async_trait::async_trait]
 impl SwqosClientTrait for ZeroSlotClient {
-    async fn send_transaction(&self, trade_type: TradeType, transaction: &VersionedTransaction) -> Result<()> {
-        self.send_transaction(trade_type, transaction).await
+    async fn send_transaction(&self, trade_type: TradeType, transaction: &VersionedTransaction) -> Result<Signature> {
+        ZeroSlotClient::send_transaction(self, trade_type, transaction).await
     }
 
-    async fn send_transactions(&self, trade_type: TradeType, transactions: &Vec<VersionedTransaction>) -> Result<()> {
-        self.send_transactions(trade_type, transactions).await
+    async fn send_transactions(&self, trade_type: TradeType, transactions: &Vec<VersionedTransaction>) -> Result<Vec<Signature>> {
+        ZeroSlotClient::send_transactions(self, trade_type, transactions).await
     }
 
     fn get_tip_account(&self) -> Result<String> {
@@ -58,7 +59,7 @@ impl ZeroSlotClient {
         Self { rpc_client: Arc::new(rpc_client), endpoint, auth_token, http_client }
     }
 
-    pub async fn send_transaction(&self, trade_type: TradeType, transaction: &VersionedTransaction) -> Result<()> {
+    pub async fn send_transaction(&self, trade_type: TradeType, transaction: &VersionedTransaction) -> Result<Signature> {
         let start_time = Instant::now();
         let (content, signature) = serialize_transaction_and_encode(transaction, UiTransactionEncoding::Base64).await?;
         println!(" 交易编码base64: {:?}", start_time.elapsed());
@@ -78,39 +79,33 @@ impl ZeroSlotClient {
         url.push_str("/?api-key=");
         url.push_str(&self.auth_token);
 
-        // 4. 直接使用 `text().await?`，避免 `json().await?` 的异步 JSON 解析
         let response_text = self.http_client.post(&url)
-            .body(request_body) // 直接传字符串，避免 `json()` 开销
-            .header("Content-Type", "application/json") // 显式指定 JSON 头
+            .body(request_body)
+            .header("Content-Type", "application/json")
             .send()
             .await?
             .text()
             .await?;
 
-        // 5. 用 `serde_json::from_str()` 解析 JSON，减少 `.json().await?` 额外等待
         if let Ok(response_json) = serde_json::from_str::<serde_json::Value>(&response_text) {
             if response_json.get("result").is_some() {
                 println!(" 0slot{}提交: {:?}", trade_type, start_time.elapsed());
             } else if let Some(_error) = response_json.get("error") {
                 eprintln!(" 0slot{}提交失败: {:?}", trade_type, _error);
+                return Err(anyhow::anyhow!("0slot submission failed: {:?}", _error));
             }
         }
 
-        let start_time: Instant = Instant::now();
-        match poll_transaction_confirmation(&self.rpc_client, signature).await {
-            Ok(_) => (),
-            Err(_) => (),
-        }
-
-        println!(" 0slot{}确认: {:?}", trade_type, start_time.elapsed());
-
-        Ok(())
+        println!(" 0slot{}签名: {:?}", trade_type, signature);
+        Ok(signature)
     }
 
-    pub async fn send_transactions(&self, trade_type: TradeType, transactions: &Vec<VersionedTransaction>) -> Result<()> {
+    pub async fn send_transactions(&self, trade_type: TradeType, transactions: &Vec<VersionedTransaction>) -> Result<Vec<Signature>> {
+        let mut signatures = Vec::new();
         for transaction in transactions {
-            self.send_transaction(trade_type, transaction).await?;
+            let signature = self.send_transaction(trade_type, transaction).await?;
+            signatures.push(signature);
         }
-        Ok(())
+        Ok(signatures)
     }
 }

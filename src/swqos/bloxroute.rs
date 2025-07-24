@@ -1,10 +1,11 @@
-use crate::swqos::common::{poll_transaction_confirmation, serialize_transaction_and_encode, FormatBase64VersionedTransaction};
+use crate::swqos::common::{serialize_transaction_and_encode, FormatBase64VersionedTransaction};
 use rand::seq::IndexedRandom;
 use reqwest::Client;
 use std::{sync::Arc, time::Instant};
 
 use std::time::Duration;
 use solana_transaction_status::UiTransactionEncoding;
+use solana_sdk::signature::Signature;
 
 use anyhow::Result;
 use solana_sdk::transaction::VersionedTransaction;
@@ -24,12 +25,12 @@ pub struct BloxrouteClient {
 
 #[async_trait::async_trait]
 impl SwqosClientTrait for BloxrouteClient {
-    async fn send_transaction(&self, trade_type: TradeType, transaction: &VersionedTransaction) -> Result<()> {
-        self.send_transaction(trade_type, transaction).await
+    async fn send_transaction(&self, trade_type: TradeType, transaction: &VersionedTransaction) -> Result<Signature> {
+        BloxrouteClient::send_transaction(self, trade_type, transaction).await
     }
 
-    async fn send_transactions(&self, trade_type: TradeType, transactions: &Vec<VersionedTransaction>) -> Result<()> {
-        self.send_transactions(trade_type, transactions).await
+    async fn send_transactions(&self, trade_type: TradeType, transactions: &Vec<VersionedTransaction>) -> Result<Vec<Signature>> {
+        BloxrouteClient::send_transactions(self, trade_type, transactions).await
     }
 
     fn get_tip_account(&self) -> Result<String> {
@@ -57,7 +58,7 @@ impl BloxrouteClient {
         Self { rpc_client: Arc::new(rpc_client), endpoint, auth_token, http_client }
     }
 
-    pub async fn send_transaction(&self, trade_type: TradeType, transaction: &VersionedTransaction) -> Result<()> {
+    pub async fn send_transaction(&self, trade_type: TradeType, transaction: &VersionedTransaction) -> Result<Signature> {
         let start_time = Instant::now();
         let (content, signature) = serialize_transaction_and_encode(transaction, UiTransactionEncoding::Base64).await?;
         println!(" 交易编码base64: {:?}", start_time.elapsed());
@@ -80,29 +81,29 @@ impl BloxrouteClient {
             .text()
             .await?;
 
-        // 5. 用 `serde_json::from_str()` 解析 JSON，减少 `.json().await?` 额外等待
         if let Ok(response_json) = serde_json::from_str::<serde_json::Value>(&response_text) {
             if response_json.get("result").is_some() {
                 println!(" bloxroute{}提交: {:?}", trade_type, start_time.elapsed());
             } else if let Some(_error) = response_json.get("error") {
                 eprintln!(" bloxroute{}提交失败: {:?}", trade_type, _error);
+                return Err(anyhow::anyhow!("bloxroute submission failed: {:?}", _error));
             }
         }
 
-        let start_time: Instant = Instant::now();
-        match poll_transaction_confirmation(&self.rpc_client, signature).await {
-            Ok(_) => (),
-            Err(_) => (),
-        }
-
-        println!(" bloxroute{}确认: {:?}", trade_type, start_time.elapsed());
-
-        Ok(())
+        println!(" bloxroute{}签名: {:?}", trade_type, signature);
+        Ok(signature)
     }
 
-    pub async fn send_transactions(&self, trade_type: TradeType, transactions: &Vec<VersionedTransaction>) -> Result<()> {
+    pub async fn send_transactions(&self, trade_type: TradeType, transactions: &Vec<VersionedTransaction>) -> Result<Vec<Signature>> {
         let start_time = Instant::now();
         println!(" 交易编码base64: {:?}", start_time.elapsed());
+
+        // Extract signatures from all transactions
+        let mut signatures = Vec::new();
+        for tx in transactions {
+            let (_, signature) = serialize_transaction_and_encode(tx, UiTransactionEncoding::Base64).await?;
+            signatures.push(signature);
+        }
 
         let body = serde_json::json!({
             "entries":  transactions
@@ -132,9 +133,11 @@ impl BloxrouteClient {
                 println!(" bloxroute{}提交: {:?}", trade_type, start_time.elapsed());
             } else if let Some(_error) = response_json.get("error") {
                 eprintln!(" bloxroute{}提交失败: {:?}", trade_type, _error);
+                return Err(anyhow::anyhow!("bloxroute batch submission failed: {:?}", _error));
             }
         }
 
-        Ok(())
+        println!(" bloxroute{}签名数量: {}", trade_type, signatures.len());
+        Ok(signatures)
     }
 }
