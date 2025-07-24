@@ -88,13 +88,17 @@ impl JitoClient {
             .text()
             .await?;
 
-        if let Ok(response_json) = serde_json::from_str::<serde_json::Value>(&response_text) {
-            if response_json.get("result").is_some() {
-                println!(" jito{}提交: {:?}", trade_type, start_time.elapsed());
-            } else if let Some(_error) = response_json.get("error") {
-                eprintln!(" jito{}提交失败: {:?}", trade_type, _error);
-                return Err(anyhow::anyhow!("jito submission failed: {:?}", _error));
-            }
+        let response_json = serde_json::from_str::<serde_json::Value>(&response_text)
+            .map_err(|e| anyhow::anyhow!("Failed to parse jito response as JSON: {} - Response: {}", e, response_text))?;
+        
+        if response_json.get("result").is_some() {
+            println!(" jito{}提交: {:?}", trade_type, start_time.elapsed());
+        } else if let Some(_error) = response_json.get("error") {
+            eprintln!(" jito{}提交失败: {:?}", trade_type, _error);
+            return Err(anyhow::anyhow!("jito submission failed: {:?}", _error));
+        } else {
+            eprintln!(" jito{}未知响应格式: {}", trade_type, response_text);
+            return Err(anyhow::anyhow!("jito unexpected response format: {}", response_text));
         }
 
         println!(" jito{}签名: {:?}", trade_type, signature);
@@ -131,13 +135,17 @@ impl JitoClient {
             .text()
             .await?;
 
-        if let Ok(response_json) = serde_json::from_str::<serde_json::Value>(&response_text) {
-            if response_json.get("result").is_some() {
-                println!(" jito{}提交: {:?}", trade_type, start_time.elapsed());
-            } else if let Some(_error) = response_json.get("error") {
-                eprintln!(" jito{}提交失败: {:?}", trade_type, _error);
-                return Err(anyhow::anyhow!("jito bundle submission failed: {:?}", _error));
-            }
+        let response_json = serde_json::from_str::<serde_json::Value>(&response_text)
+            .map_err(|e| anyhow::anyhow!("Failed to parse jito bundle response as JSON: {} - Response: {}", e, response_text))?;
+        
+        if response_json.get("result").is_some() {
+            println!(" jito{}提交: {:?}", trade_type, start_time.elapsed());
+        } else if let Some(_error) = response_json.get("error") {
+            eprintln!(" jito{}提交失败: {:?}", trade_type, _error);
+            return Err(anyhow::anyhow!("jito bundle submission failed: {:?}", _error));
+        } else {
+            eprintln!(" jito{}未知响应格式: {}", trade_type, response_text);
+            return Err(anyhow::anyhow!("jito bundle unexpected response format: {}", response_text));
         }
 
         println!(" jito{}签名数量: {}", trade_type, signatures.len());

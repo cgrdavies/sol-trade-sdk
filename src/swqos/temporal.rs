@@ -87,13 +87,17 @@ impl TemporalClient {
             .text()
             .await?;
 
-        if let Ok(response_json) = serde_json::from_str::<serde_json::Value>(&response_text) {
-            if response_json.get("result").is_some() {
-                println!(" nozomi{}提交: {:?}", trade_type, start_time.elapsed());
-            } else if let Some(_error) = response_json.get("error") {
-                eprintln!(" nozomi{}提交失败: {:?}", trade_type, _error);
-                return Err(anyhow::anyhow!("nozomi submission failed: {:?}", _error));
-            }
+        let response_json = serde_json::from_str::<serde_json::Value>(&response_text)
+            .map_err(|e| anyhow::anyhow!("Failed to parse temporal response as JSON: {} - Response: {}", e, response_text))?;
+        
+        if response_json.get("result").is_some() {
+            println!(" nozomi{}提交: {:?}", trade_type, start_time.elapsed());
+        } else if let Some(_error) = response_json.get("error") {
+            eprintln!(" nozomi{}提交失败: {:?}", trade_type, _error);
+            return Err(anyhow::anyhow!("nozomi submission failed: {:?}", _error));
+        } else {
+            eprintln!(" nozomi{}未知响应格式: {}", trade_type, response_text);
+            return Err(anyhow::anyhow!("nozomi unexpected response format: {}", response_text));
         }
 
         println!(" nozomi{}签名: {:?}", trade_type, signature);

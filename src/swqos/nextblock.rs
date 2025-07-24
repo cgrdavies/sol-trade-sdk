@@ -79,13 +79,21 @@ impl NextBlockClient {
             .text()
             .await?;
 
-        if let Ok(response_json) = serde_json::from_str::<serde_json::Value>(&response_text) {
-            if response_json.get("result").is_some() {
-                println!(" nextblock{}提交: {:?}", trade_type, start_time.elapsed());
-            } else if let Some(_error) = response_json.get("error") {
-                eprintln!(" nextblock{}提交失败: {:?}", trade_type, _error);
-                return Err(anyhow::anyhow!("nextblock submission failed: {:?}", _error));
-            }
+        let response_json = serde_json::from_str::<serde_json::Value>(&response_text)
+            .map_err(|e| anyhow::anyhow!("Failed to parse nextblock response as JSON: {} - Response: {}", e, response_text))?;
+        
+        // NextBlock can return different formats - check for both JSON-RPC and direct response
+        if response_json.get("result").is_some() || response_json.get("signature").is_some() {
+            println!(" nextblock{}提交: {:?}", trade_type, start_time.elapsed());
+        } else if let Some(_error) = response_json.get("error") {
+            eprintln!(" nextblock{}提交失败: {:?}", trade_type, _error);
+            return Err(anyhow::anyhow!("nextblock submission failed: {:?}", _error));
+        } else if let Some(reason) = response_json.get("reason") {
+            eprintln!(" nextblock{}提交失败: {:?}", trade_type, reason);
+            return Err(anyhow::anyhow!("nextblock submission failed: {:?}", reason));
+        } else {
+            eprintln!(" nextblock{}未知响应格式: {}", trade_type, response_text);
+            return Err(anyhow::anyhow!("nextblock unexpected response format: {}", response_text));
         }
 
         println!(" nextblock{}签名: {:?}", trade_type, signature);
