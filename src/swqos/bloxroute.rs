@@ -11,6 +11,7 @@ use anyhow::Result;
 use solana_sdk::transaction::VersionedTransaction;
 use crate::swqos::{SwqosType, TradeType};
 use crate::swqos::SwqosClientTrait;
+use crate::common::types::TransactionResult;
 
 use crate::{common::SolanaRpcClient, constants::swqos::BLOX_TIP_ACCOUNTS};
 
@@ -25,11 +26,11 @@ pub struct BloxrouteClient {
 
 #[async_trait::async_trait]
 impl SwqosClientTrait for BloxrouteClient {
-    async fn send_transaction(&self, trade_type: TradeType, transaction: &VersionedTransaction) -> Result<Signature> {
+    async fn send_transaction(&self, trade_type: TradeType, transaction: &VersionedTransaction) -> Result<TransactionResult> {
         BloxrouteClient::send_transaction(self, trade_type, transaction).await
     }
 
-    async fn send_transactions(&self, trade_type: TradeType, transactions: &Vec<VersionedTransaction>) -> Result<Vec<Signature>> {
+    async fn send_transactions(&self, trade_type: TradeType, transactions: &Vec<VersionedTransaction>) -> Result<Vec<TransactionResult>> {
         BloxrouteClient::send_transactions(self, trade_type, transactions).await
     }
 
@@ -58,7 +59,7 @@ impl BloxrouteClient {
         Self { rpc_client: Arc::new(rpc_client), endpoint, auth_token, http_client }
     }
 
-    pub async fn send_transaction(&self, trade_type: TradeType, transaction: &VersionedTransaction) -> Result<Signature> {
+    pub async fn send_transaction(&self, trade_type: TradeType, transaction: &VersionedTransaction) -> Result<TransactionResult> {
         let start_time = Instant::now();
         let (content, signature) = serialize_transaction_and_encode(transaction, UiTransactionEncoding::Base64).await?;
         println!(" Transaction base64 encoding: {:?}", start_time.elapsed());
@@ -86,19 +87,28 @@ impl BloxrouteClient {
         
         if response_json.get("result").is_some() {
             println!(" bloxroute{} submission: {:?}", trade_type, start_time.elapsed());
+            
+            // Poll for confirmation
+            match crate::swqos::common::poll_transaction_confirmation(&self.rpc_client, signature).await {
+                Ok(transaction_result) => {
+                    println!(" bloxroute{} confirmation: {:?}", trade_type, start_time.elapsed());
+                    Ok(transaction_result)
+                }
+                Err(e) => {
+                    eprintln!(" bloxroute{} confirmation failed: {:?}", trade_type, e);
+                    Err(e)
+                }
+            }
         } else if let Some(_error) = response_json.get("error") {
             eprintln!(" bloxroute{} submission failed: {:?}", trade_type, _error);
-            return Err(anyhow::anyhow!("bloxroute submission failed: {:?}", _error));
+            Err(anyhow::anyhow!("bloxroute submission failed: {:?}", _error))
         } else {
             eprintln!(" bloxroute{} unexpected response format: {}", trade_type, response_text);
-            return Err(anyhow::anyhow!("bloxroute unexpected response format: {}", response_text));
+            Err(anyhow::anyhow!("bloxroute unexpected response format: {}", response_text))
         }
-
-        println!(" bloxroute{} signature: {:?}", trade_type, signature);
-        Ok(signature)
     }
 
-    pub async fn send_transactions(&self, trade_type: TradeType, transactions: &Vec<VersionedTransaction>) -> Result<Vec<Signature>> {
+    pub async fn send_transactions(&self, trade_type: TradeType, transactions: &Vec<VersionedTransaction>) -> Result<Vec<TransactionResult>> {
         let start_time = Instant::now();
         println!(" Transaction base64 encoding: {:?}", start_time.elapsed());
 
@@ -137,15 +147,27 @@ impl BloxrouteClient {
         
         if response_json.get("result").is_some() {
             println!(" bloxroute{} submission: {:?}", trade_type, start_time.elapsed());
+            
+            // Convert signatures to TransactionResults by polling for confirmation
+            let mut results = Vec::new();
+            for signature in signatures {
+                match crate::swqos::common::poll_transaction_confirmation(&self.rpc_client, signature).await {
+                    Ok(transaction_result) => results.push(transaction_result),
+                    Err(e) => {
+                        eprintln!(" bloxroute{} confirmation failed for signature {}: {:?}", trade_type, signature, e);
+                        return Err(e);
+                    }
+                }
+            }
+            
+            println!(" bloxroute{} transaction count: {}", trade_type, results.len());
+            Ok(results)
         } else if let Some(_error) = response_json.get("error") {
             eprintln!(" bloxroute{} submission failed: {:?}", trade_type, _error);
-            return Err(anyhow::anyhow!("bloxroute batch submission failed: {:?}", _error));
+            Err(anyhow::anyhow!("bloxroute batch submission failed: {:?}", _error))
         } else {
             eprintln!(" bloxroute{} unexpected response format: {}", trade_type, response_text);
-            return Err(anyhow::anyhow!("bloxroute batch unexpected response format: {}", response_text));
+            Err(anyhow::anyhow!("bloxroute batch unexpected response format: {}", response_text))
         }
-
-        println!(" bloxroute{} signature count: {}", trade_type, signatures.len());
-        Ok(signatures)
     }
 }

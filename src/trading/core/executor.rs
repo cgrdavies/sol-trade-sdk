@@ -1,6 +1,7 @@
 use anyhow::{anyhow, Result};
 use std::sync::Arc;
 use solana_sdk::signature::Signature;
+use crate::common::types::TransactionResult;
 
 use super::{
     parallel::parallel_execute_with_tips,
@@ -70,7 +71,7 @@ impl TradeExecutor for GenericTradeExecutor {
         Ok(signature)
     }
 
-    async fn buy_with_tip(&self, mut params: BuyWithTipParams) -> Result<Signature> {
+    async fn buy_with_tip(&self, mut params: BuyWithTipParams) -> Result<TransactionResult> {
         if params.data_size_limit == 0 {
             params.data_size_limit = MAX_LOADED_ACCOUNTS_DATA_SIZE_LIMIT;
         }
@@ -147,7 +148,7 @@ impl TradeExecutor for GenericTradeExecutor {
         Ok(signature)
     }
 
-    async fn sell_with_tip(&self, params: SellWithTipParams) -> Result<Signature> {
+    async fn sell_with_tip(&self, params: SellWithTipParams) -> Result<TransactionResult> {
         let timer = TradeTimer::new("Building sell transaction instruction");
 
         // 转换为SellParams进行指令构建

@@ -1,6 +1,7 @@
 use anyhow::Result;
 use solana_sdk::{instruction::Instruction, signature::Signature};
 use super::params::{BuyParams, BuyWithTipParams, SellParams, SellWithTipParams};
+use crate::common::types::TransactionResult;
 
 /// Trade executor trait - defines core methods that all trading protocols must implement
 #[async_trait::async_trait]
@@ -8,14 +9,14 @@ pub trait TradeExecutor: Send + Sync {
     /// Execute buy transaction
     async fn buy(&self, params: BuyParams) -> Result<Signature>;
 
-    /// Execute buy transaction using MEV service - returns the first successfully confirmed transaction signature
-    async fn buy_with_tip(&self, params: BuyWithTipParams) -> Result<Signature>;
+    /// Execute buy transaction using MEV service - returns the first successfully confirmed transaction result (signature and slot)
+    async fn buy_with_tip(&self, params: BuyWithTipParams) -> Result<TransactionResult>;
 
     /// Execute sell transaction
     async fn sell(&self, params: SellParams) -> Result<Signature>;
 
-    /// Execute sell transaction using MEV service - returns the first successfully confirmed transaction signature
-    async fn sell_with_tip(&self, params: SellWithTipParams) -> Result<Signature>;
+    /// Execute sell transaction using MEV service - returns the first successfully confirmed transaction result (signature and slot)
+    async fn sell_with_tip(&self, params: SellWithTipParams) -> Result<TransactionResult>;
 
     /// Get protocol name
     fn protocol_name(&self) -> &'static str;

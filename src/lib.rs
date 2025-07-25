@@ -17,14 +17,14 @@ use crate::trading::factory::DexType;
 use crate::trading::BuyParams;
 use crate::trading::SellParams;
 use crate::trading::TradeFactory;
-use common::{PriorityFee, SolanaRpcClient, TradeConfig};
+use common::{PriorityFee, SolanaRpcClient, TradeConfig, types::TransactionResult};
 use rustls::crypto::{ring::default_provider, CryptoProvider};
 use solana_sdk::hash::Hash;
 use solana_sdk::{pubkey::Pubkey, signature::Keypair};
 use std::sync::Arc;
 use std::sync::Mutex;
 use swqos::SwqosClient;
-use solana_sdk::signature::Signature;
+
 
 pub struct SolanaTrade {
     pub payer: Arc<Keypair>,
@@ -132,7 +132,7 @@ impl SolanaTrade {
     ///
     /// # Returns
     ///
-    /// Returns `Ok(Signature)` containing the transaction signature if the buy order is successfully executed, or an error if the transaction fails.
+    /// Returns `Ok(TransactionResult)` containing the transaction signature and slot if the buy order is successfully executed, or an error if the transaction fails.
     ///
     /// # Errors
     ///
@@ -175,7 +175,7 @@ impl SolanaTrade {
         recent_blockhash: Hash,
         custom_buy_tip_fee: Option<f64>,
         extension_params: Option<Box<dyn ProtocolParams>>,
-    ) -> Result<Signature, anyhow::Error> {
+    ) -> Result<TransactionResult, anyhow::Error> {
         let executor = TradeFactory::create_executor(dex_type.clone());
         let protocol_params = if let Some(params) = extension_params {
             params
@@ -299,7 +299,7 @@ impl SolanaTrade {
         recent_blockhash: Hash,
         custom_buy_tip_fee: Option<f64>,
         extension_params: Option<Box<dyn ProtocolParams>>,
-    ) -> Result<Signature, anyhow::Error> {
+    ) -> Result<TransactionResult, anyhow::Error> {
         let executor = TradeFactory::create_executor(dex_type.clone());
         let protocol_params = if let Some(params) = extension_params {
             params
@@ -432,7 +432,7 @@ impl SolanaTrade {
         recent_blockhash: Hash,
         custom_buy_tip_fee: Option<f64>,
         extension_params: Option<Box<dyn ProtocolParams>>,
-    ) -> Result<Signature, anyhow::Error> {
+    ) -> Result<TransactionResult, anyhow::Error> {
         if percent == 0 || percent > 100 {
             return Err(anyhow::anyhow!("Percentage must be between 1 and 100"));
         }

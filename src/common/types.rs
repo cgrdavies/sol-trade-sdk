@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use solana_client::rpc_client::RpcClient;
-use solana_sdk::{commitment_config::CommitmentConfig, pubkey::Pubkey, signature::Keypair};
+use solana_sdk::{commitment_config::CommitmentConfig, pubkey::Pubkey, signature::Keypair, signature::Signature};
 use serde::Deserialize;
 use crate::{constants::trade::trade::{DEFAULT_BUY_TIP_FEE, DEFAULT_COMPUTE_UNIT_LIMIT, DEFAULT_COMPUTE_UNIT_PRICE, DEFAULT_RPC_UNIT_LIMIT, DEFAULT_RPC_UNIT_PRICE, DEFAULT_SELL_TIP_FEE}, swqos::{SwqosClient, SwqosConfig}};
 
@@ -56,6 +56,19 @@ impl Default for PriorityFee {
             smart_buy_tip_fee: 0.0,
             sell_tip_fee: DEFAULT_SELL_TIP_FEE 
         }
+    }
+}
+
+/// Transaction execution result containing both signature and slot information
+#[derive(Debug, Clone)]
+pub struct TransactionResult {
+    pub signature: Signature,
+    pub slot: u64,
+}
+
+impl TransactionResult {
+    pub fn new(signature: Signature, slot: u64) -> Self {
+        Self { signature, slot }
     }
 }
 

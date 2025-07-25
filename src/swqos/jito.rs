@@ -13,6 +13,7 @@ use anyhow::{anyhow, Result};
 use solana_sdk::transaction::VersionedTransaction;
 use crate::swqos::{SwqosType, TradeType};
 use crate::swqos::SwqosClientTrait;
+use crate::common::types::TransactionResult;
 
 use crate::{common::SolanaRpcClient, constants::swqos::JITO_TIP_ACCOUNTS};
 
@@ -26,11 +27,11 @@ pub struct JitoClient {
 
 #[async_trait::async_trait]
 impl SwqosClientTrait for JitoClient {
-    async fn send_transaction(&self, trade_type: TradeType, transaction: &VersionedTransaction) -> Result<Signature> {
+    async fn send_transaction(&self, trade_type: TradeType, transaction: &VersionedTransaction) -> Result<TransactionResult> {
         JitoClient::send_transaction(self, trade_type, transaction).await
     }
 
-    async fn send_transactions(&self, trade_type: TradeType, transactions: &Vec<VersionedTransaction>) -> Result<Vec<Signature>> {
+    async fn send_transactions(&self, trade_type: TradeType, transactions: &Vec<VersionedTransaction>) -> Result<Vec<TransactionResult>> {
         JitoClient::send_transactions(self, trade_type, transactions).await
     }
 
@@ -62,7 +63,7 @@ impl JitoClient {
         Self { rpc_client: Arc::new(rpc_client), endpoint, auth_token, http_client }
     }
 
-    pub async fn send_transaction(&self, trade_type: TradeType, transaction: &VersionedTransaction) -> Result<Signature> {
+    pub async fn send_transaction(&self, trade_type: TradeType, transaction: &VersionedTransaction) -> Result<TransactionResult> {
         let start_time = Instant::now();
         let (content, signature) = serialize_transaction_and_encode(transaction, UiTransactionEncoding::Base64).await?;
         println!(" Transaction base64 encoding: {:?}", start_time.elapsed());
@@ -96,9 +97,9 @@ impl JitoClient {
             
             // Poll for confirmation
             match crate::swqos::common::poll_transaction_confirmation(&self.rpc_client, signature).await {
-                Ok(confirmed_signature) => {
+                Ok(transaction_result) => {
                     println!(" jito{} confirmation: {:?}", trade_type, start_time.elapsed());
-                    Ok(confirmed_signature)
+                    Ok(transaction_result)
                 }
                 Err(e) => {
                     eprintln!(" jito{} confirmation failed: {:?}", trade_type, e);
@@ -114,7 +115,7 @@ impl JitoClient {
         }
     }
 
-    pub async fn send_transactions(&self, trade_type: TradeType, transactions: &Vec<VersionedTransaction>) -> Result<Vec<Signature>> {
+    pub async fn send_transactions(&self, trade_type: TradeType, transactions: &Vec<VersionedTransaction>) -> Result<Vec<TransactionResult>> {
         let start_time = Instant::now();
         let txs_base64 = transactions.iter().map(|tx| tx.to_base64_string()).collect::<Vec<String>>();
         
@@ -157,7 +158,19 @@ impl JitoClient {
             return Err(anyhow::anyhow!("jito bundle unexpected response format: {}", response_text));
         }
 
-        println!(" jito{} signature count: {}", trade_type, signatures.len());
-        Ok(signatures)
+        // Convert signatures to TransactionResults by polling for confirmation
+        let mut results = Vec::new();
+        for signature in signatures {
+            match crate::swqos::common::poll_transaction_confirmation(&self.rpc_client, signature).await {
+                Ok(transaction_result) => results.push(transaction_result),
+                Err(e) => {
+                    eprintln!(" jito{} confirmation failed for signature {}: {:?}", trade_type, signature, e);
+                    return Err(e);
+                }
+            }
+        }
+        
+        println!(" jito{} transaction count: {}", trade_type, results.len());
+        Ok(results)
     }
 }

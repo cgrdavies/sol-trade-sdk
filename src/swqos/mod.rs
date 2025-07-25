@@ -12,6 +12,7 @@ use solana_sdk::{commitment_config::CommitmentConfig, transaction::VersionedTran
 use tokio::sync::RwLock;
 
 use anyhow::Result;
+use crate::common::types::TransactionResult;
 
 use crate::{common::SolanaRpcClient, constants::swqos::{SWQOS_ENDPOINTS_BLOX, SWQOS_ENDPOINTS_JITO, SWQOS_ENDPOINTS_NEXTBLOCK, SWQOS_ENDPOINTS_TEMPORAL, SWQOS_ENDPOINTS_ZERO_SLOT}, swqos::{bloxroute::BloxrouteClient, jito::JitoClient, nextblock::NextBlockClient, solana_rpc::SolRpcClient, temporal::TemporalClient, zeroslot::ZeroSlotClient}};
 
@@ -53,8 +54,8 @@ pub type SwqosClient = dyn SwqosClientTrait + Send + Sync + 'static;
 
 #[async_trait::async_trait]
 pub trait SwqosClientTrait {
-    async fn send_transaction(&self, trade_type: TradeType, transaction: &VersionedTransaction) -> Result<Signature>;
-    async fn send_transactions(&self, trade_type: TradeType, transactions: &Vec<VersionedTransaction>) -> Result<Vec<Signature>>;
+    async fn send_transaction(&self, trade_type: TradeType, transaction: &VersionedTransaction) -> Result<TransactionResult>;
+    async fn send_transactions(&self, trade_type: TradeType, transactions: &Vec<VersionedTransaction>) -> Result<Vec<TransactionResult>>;
     fn get_tip_account(&self) -> Result<String>;
     fn get_swqos_type(&self) -> SwqosType;
 }

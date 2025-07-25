@@ -12,6 +12,7 @@ use anyhow::Result;
 use solana_sdk::transaction::VersionedTransaction;
 use crate::swqos::{SwqosType, TradeType};
 use crate::swqos::SwqosClientTrait;
+use crate::common::types::TransactionResult;
 
 use crate::{common::SolanaRpcClient, constants::swqos::NEXTBLOCK_TIP_ACCOUNTS};
 
@@ -25,11 +26,11 @@ pub struct NextBlockClient {
 
 #[async_trait::async_trait]
 impl SwqosClientTrait for NextBlockClient {
-    async fn send_transaction(&self, trade_type: TradeType, transaction: &VersionedTransaction) -> Result<Signature> {
+    async fn send_transaction(&self, trade_type: TradeType, transaction: &VersionedTransaction) -> Result<TransactionResult> {
         NextBlockClient::send_transaction(self, trade_type, transaction).await
     }
 
-    async fn send_transactions(&self, trade_type: TradeType, transactions: &Vec<VersionedTransaction>) -> Result<Vec<Signature>> {
+    async fn send_transactions(&self, trade_type: TradeType, transactions: &Vec<VersionedTransaction>) -> Result<Vec<TransactionResult>> {
         NextBlockClient::send_transactions(self, trade_type, transactions).await
     }
 
@@ -58,7 +59,7 @@ impl NextBlockClient {
         Self { rpc_client: Arc::new(rpc_client), endpoint, auth_token, http_client }
     }
 
-    pub async fn send_transaction(&self, trade_type: TradeType, transaction: &VersionedTransaction) -> Result<Signature> {
+    pub async fn send_transaction(&self, trade_type: TradeType, transaction: &VersionedTransaction) -> Result<TransactionResult> {
         let start_time = Instant::now();
         let (content, signature) = serialize_transaction_and_encode(transaction, UiTransactionEncoding::Base64).await?;
 
@@ -91,9 +92,9 @@ impl NextBlockClient {
             
             // Poll for confirmation
             match crate::swqos::common::poll_transaction_confirmation(&self.rpc_client, signature).await {
-                Ok(confirmed_signature) => {
+                Ok(transaction_result) => {
                     println!(" nextblock{} confirmation: {:?}", trade_type, start_time.elapsed());
-                    Ok(confirmed_signature)
+                    Ok(transaction_result)
                 }
                 Err(e) => {
                     eprintln!(" nextblock{} confirmation failed: {:?}", trade_type, e);
@@ -112,12 +113,12 @@ impl NextBlockClient {
         }
     }
 
-    pub async fn send_transactions(&self, trade_type: TradeType, transactions: &Vec<VersionedTransaction>) -> Result<Vec<Signature>> {
-        let mut signatures = Vec::new();
+    pub async fn send_transactions(&self, trade_type: TradeType, transactions: &Vec<VersionedTransaction>) -> Result<Vec<TransactionResult>> {
+        let mut results = Vec::new();
         for transaction in transactions {
-            let signature = self.send_transaction(trade_type, transaction).await?;
-            signatures.push(signature);
+            let result = self.send_transaction(trade_type, transaction).await?;
+            results.push(result);
         }
-        Ok(signatures)
+        Ok(results)
     }
 }

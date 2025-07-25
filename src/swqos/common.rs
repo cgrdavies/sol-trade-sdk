@@ -7,7 +7,7 @@ use solana_transaction_status::{TransactionConfirmationStatus, UiTransactionEnco
 use std::str::FromStr;
 use std::time::{Duration, Instant};
 use tokio::time::sleep;
-use crate::common::types::SolanaRpcClient;
+use crate::common::types::{SolanaRpcClient, TransactionResult};
 use anyhow::Result;
 use base64::Engine;
 use base64::engine::general_purpose::{self, STANDARD};
@@ -25,7 +25,7 @@ impl FormatBase64VersionedTransaction for VersionedTransaction {
     }
 }
 
-pub async fn poll_transaction_confirmation(rpc: &SolanaRpcClient, txt_sig: Signature) -> Result<Signature> {
+pub async fn poll_transaction_confirmation(rpc: &SolanaRpcClient, txt_sig: Signature) -> Result<TransactionResult> {
     let timeout: Duration = Duration::from_secs(5);
     let interval: Duration = Duration::from_millis(1000);
     let start: Instant = Instant::now();
@@ -43,7 +43,7 @@ pub async fn poll_transaction_confirmation(rpc: &SolanaRpcClient, txt_sig: Signa
                     && (status.confirmation_status == Some(TransactionConfirmationStatus::Confirmed)
                         || status.confirmation_status == Some(TransactionConfirmationStatus::Finalized))
                 {
-                    return Ok(txt_sig);
+                    return Ok(TransactionResult::new(txt_sig, status.slot));
                 }
                 if status.err.is_some() {
                     return Err(anyhow::anyhow!(status.err.unwrap()));

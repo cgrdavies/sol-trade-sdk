@@ -1,12 +1,12 @@
 use anyhow::{anyhow, Result};
 use futures::future::select_all;
 use solana_hash::Hash;
-use solana_sdk::{instruction::Instruction, pubkey::Pubkey, signature::{Keypair, Signature}};
+use solana_sdk::{instruction::Instruction, pubkey::Pubkey, signature::Keypair};
 use std::{str::FromStr, sync::Arc};
 use tokio::task::JoinHandle;
 
 use crate::{
-    common::PriorityFee,
+    common::{PriorityFee, types::TransactionResult},
     swqos::{SwqosType, SwqosClient, TradeType},
     trading::core::timer::TradeTimer,
     trading::common::{
@@ -15,7 +15,7 @@ use crate::{
     },
 };
 
-/// Parallel execution function for transactions - returns the first successfully confirmed transaction signature
+/// Parallel execution function for transactions - returns the first successfully confirmed transaction result (signature and slot)
 pub async fn parallel_execute_with_tips(
     swqos_clients: Vec<Arc<SwqosClient>>,
     payer: Arc<Keypair>,
@@ -25,9 +25,9 @@ pub async fn parallel_execute_with_tips(
     recent_blockhash: Hash,
     data_size_limit: u32,
     trade_type: TradeType,
-) -> Result<Signature> {
+) -> Result<TransactionResult> {
     let cores = core_affinity::get_core_ids().unwrap();
-    let mut handles: Vec<JoinHandle<Result<Signature>>> = vec![];
+    let mut handles: Vec<JoinHandle<Result<TransactionResult>>> = vec![];
 
     for i in 0..swqos_clients.len() {
         let swqos_client = swqos_clients[i].clone();
@@ -91,12 +91,12 @@ pub async fn parallel_execute_with_tips(
 
             timer.stage(format!("Submitting transaction instruction: {:?}", swqos_client.get_swqos_type()));
 
-            let signature = swqos_client
+            let transaction_result = swqos_client
                 .send_transaction(trade_type, &transaction)
                 .await?;
 
             timer.finish();
-            Ok::<Signature, anyhow::Error>(signature)
+            Ok::<TransactionResult, anyhow::Error>(transaction_result)
         });
 
         handles.push(handle);
@@ -111,13 +111,14 @@ pub async fn parallel_execute_with_tips(
         remaining_handles = remaining;
         
         match result {
-            Ok(Ok(signature)) => {
-                println!("Successfully obtained first confirmed transaction signature: {}", signature);
+            Ok(Ok(transaction_result)) => {
+                println!("Successfully obtained first confirmed transaction - signature: {}, slot: {}", 
+                         transaction_result.signature, transaction_result.slot);
                 // Cancel remaining tasks
                 for handle in remaining_handles {
                     handle.abort();
                 }
-                return Ok(signature);
+                return Ok(transaction_result);
             }
             Ok(Err(e)) => {
                 errors.push(format!("Task error: {}", e));
