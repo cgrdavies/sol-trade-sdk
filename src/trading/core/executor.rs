@@ -1,5 +1,6 @@
 use anyhow::{anyhow, Result};
 use std::sync::Arc;
+use solana_sdk::signature::Signature;
 
 use super::{
     parallel::parallel_execute_with_tips,
@@ -34,7 +35,7 @@ impl GenericTradeExecutor {
 
 #[async_trait::async_trait]
 impl TradeExecutor for GenericTradeExecutor {
-    async fn buy(&self, mut params: BuyParams) -> Result<()> {
+    async fn buy(&self, mut params: BuyParams) -> Result<Signature> {
         if params.data_size_limit == 0 {
             params.data_size_limit = MAX_LOADED_ACCOUNTS_DATA_SIZE_LIMIT;
         }
@@ -63,13 +64,13 @@ impl TradeExecutor for GenericTradeExecutor {
         timer.stage("rpc提交确认");
 
         // 发送交易
-        rpc.send_and_confirm_transaction(&transaction).await?;
+        let signature = rpc.send_and_confirm_transaction(&transaction).await?;
         timer.finish();
 
-        Ok(())
+        Ok(signature)
     }
 
-    async fn buy_with_tip(&self, mut params: BuyWithTipParams) -> Result<()> {
+    async fn buy_with_tip(&self, mut params: BuyWithTipParams) -> Result<Vec<Signature>> {
         if params.data_size_limit == 0 {
             params.data_size_limit = MAX_LOADED_ACCOUNTS_DATA_SIZE_LIMIT;
         }
@@ -99,7 +100,7 @@ impl TradeExecutor for GenericTradeExecutor {
         timer.finish();
 
         // 并行执行交易
-        parallel_execute_with_tips(
+        let signatures = parallel_execute_with_tips(
             params.swqos_clients,
             params.payer,
             instructions,
@@ -111,10 +112,10 @@ impl TradeExecutor for GenericTradeExecutor {
         )
         .await?;
 
-        Ok(())
+        Ok(signatures)
     }
 
-    async fn sell(&self, params: SellParams) -> Result<()> {
+    async fn sell(&self, params: SellParams) -> Result<Signature> {
         if params.rpc.is_none() {
             return Err(anyhow!("RPC is not set"));
         }
@@ -140,13 +141,13 @@ impl TradeExecutor for GenericTradeExecutor {
         timer.stage("卖出交易签名");
 
         // 发送交易
-        rpc.send_and_confirm_transaction(&transaction).await?;
+        let signature = rpc.send_and_confirm_transaction(&transaction).await?;
         timer.finish();
 
-        Ok(())
+        Ok(signature)
     }
 
-    async fn sell_with_tip(&self, params: SellWithTipParams) -> Result<()> {
+    async fn sell_with_tip(&self, params: SellWithTipParams) -> Result<Vec<Signature>> {
         let timer = TradeTimer::new("构建卖出交易指令");
 
         // 转换为SellParams进行指令构建
@@ -172,7 +173,7 @@ impl TradeExecutor for GenericTradeExecutor {
         timer.finish();
 
         // 并行执行交易
-        parallel_execute_with_tips(
+        let signatures = parallel_execute_with_tips(
             params.swqos_clients,
             params.payer,
             instructions,
@@ -184,7 +185,7 @@ impl TradeExecutor for GenericTradeExecutor {
         )
         .await?;
 
-        Ok(())
+        Ok(signatures)
     }
 
     fn protocol_name(&self) -> &'static str {

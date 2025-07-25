@@ -1,6 +1,6 @@
 use anyhow::{anyhow, Result};
 use solana_hash::Hash;
-use solana_sdk::{instruction::Instruction, pubkey::Pubkey, signature::Keypair};
+use solana_sdk::{instruction::Instruction, pubkey::Pubkey, signature::{Keypair, Signature}};
 use std::{str::FromStr, sync::Arc};
 use tokio::task::JoinHandle;
 
@@ -24,9 +24,9 @@ pub async fn parallel_execute_with_tips(
     recent_blockhash: Hash,
     data_size_limit: u32,
     trade_type: TradeType,
-) -> Result<()> {
+) -> Result<Vec<Signature>> {
     let cores = core_affinity::get_core_ids().unwrap();
-    let mut handles: Vec<JoinHandle<Result<()>>> = vec![];
+    let mut handles: Vec<JoinHandle<Result<Signature>>> = vec![];
 
     for i in 0..swqos_clients.len() {
         let swqos_client = swqos_clients[i].clone();
@@ -94,33 +94,39 @@ pub async fn parallel_execute_with_tips(
 
             timer.stage(format!("提交交易指令: {:?}", swqos_client.get_swqos_type()));
 
-            swqos_client
+            let signature = swqos_client
                 .send_transaction(trade_type, &transaction)
                 .await?;
 
             timer.finish();
-            Ok::<(), anyhow::Error>(())
+            Ok::<Signature, anyhow::Error>(signature)
         });
 
         handles.push(handle);
     }
 
-    // 等待所有任务完成
+    // 等待所有任务完成并收集成功的签名
+    let mut signatures = Vec::new();
     let mut errors = Vec::new();
+    
     for handle in handles {
         match handle.await {
-            Ok(Ok(_)) => (),
+            Ok(Ok(signature)) => signatures.push(signature),
             Ok(Err(e)) => errors.push(format!("Task error: {}", e)),
             Err(e) => errors.push(format!("Join error: {}", e)),
         }
     }
 
-    if !errors.is_empty() {
-        for error in &errors {
-            println!("{}", error);
-        }
-        return Err(anyhow!("Some tasks failed: {:?}", errors));
+    if signatures.is_empty() {
+        return Err(anyhow!("All tasks failed: {:?}", errors));
     }
 
-    Ok(())
+    if !errors.is_empty() {
+        for error in &errors {
+            println!("Warning: {}", error);
+        }
+        println!("Successfully submitted {} out of {} transactions", signatures.len(), signatures.len() + errors.len());
+    }
+
+    Ok(signatures)
 }
