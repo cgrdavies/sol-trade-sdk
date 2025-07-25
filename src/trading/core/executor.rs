@@ -70,7 +70,7 @@ impl TradeExecutor for GenericTradeExecutor {
         Ok(signature)
     }
 
-    async fn buy_with_tip(&self, mut params: BuyWithTipParams) -> Result<Vec<Signature>> {
+    async fn buy_with_tip(&self, mut params: BuyWithTipParams) -> Result<Signature> {
         if params.data_size_limit == 0 {
             params.data_size_limit = MAX_LOADED_ACCOUNTS_DATA_SIZE_LIMIT;
         }
@@ -100,7 +100,7 @@ impl TradeExecutor for GenericTradeExecutor {
         timer.finish();
 
         // 并行执行交易
-        let signatures = parallel_execute_with_tips(
+        let signature = parallel_execute_with_tips(
             params.swqos_clients,
             params.payer,
             instructions,
@@ -112,7 +112,7 @@ impl TradeExecutor for GenericTradeExecutor {
         )
         .await?;
 
-        Ok(signatures)
+        Ok(signature)
     }
 
     async fn sell(&self, params: SellParams) -> Result<Signature> {
@@ -147,7 +147,7 @@ impl TradeExecutor for GenericTradeExecutor {
         Ok(signature)
     }
 
-    async fn sell_with_tip(&self, params: SellWithTipParams) -> Result<Vec<Signature>> {
+    async fn sell_with_tip(&self, params: SellWithTipParams) -> Result<Signature> {
         let timer = TradeTimer::new("构建卖出交易指令");
 
         // 转换为SellParams进行指令构建
@@ -173,7 +173,7 @@ impl TradeExecutor for GenericTradeExecutor {
         timer.finish();
 
         // 并行执行交易
-        let signatures = parallel_execute_with_tips(
+        let signature = parallel_execute_with_tips(
             params.swqos_clients,
             params.payer,
             instructions,
@@ -185,7 +185,7 @@ impl TradeExecutor for GenericTradeExecutor {
         )
         .await?;
 
-        Ok(signatures)
+        Ok(signature)
     }
 
     fn protocol_name(&self) -> &'static str {

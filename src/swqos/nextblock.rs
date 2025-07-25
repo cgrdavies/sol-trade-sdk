@@ -61,18 +61,21 @@ impl NextBlockClient {
     pub async fn send_transaction(&self, trade_type: TradeType, transaction: &VersionedTransaction) -> Result<Signature> {
         let start_time = Instant::now();
         let (content, signature) = serialize_transaction_and_encode(transaction, UiTransactionEncoding::Base64).await?;
-        println!(" 交易编码base64: {:?}", start_time.elapsed());
 
         let request_body = serde_json::to_string(&json!({
-            "transaction": {
-                "content": content
-            },
-            "frontRunningProtection": false
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "sendTransaction",
+            "params": [
+                content,
+                {
+                    "encoding": "base64"
+                }
+            ]
         }))?;
 
         let response_text = self.http_client.post(&self.endpoint)
             .body(request_body)
-            .header("Authorization", &self.auth_token)
             .header("Content-Type", "application/json")
             .send()
             .await?
@@ -81,23 +84,32 @@ impl NextBlockClient {
 
         let response_json = serde_json::from_str::<serde_json::Value>(&response_text)
             .map_err(|e| anyhow::anyhow!("Failed to parse nextblock response as JSON: {} - Response: {}", e, response_text))?;
-        
+
         // NextBlock can return different formats - check for both JSON-RPC and direct response
         if response_json.get("result").is_some() || response_json.get("signature").is_some() {
             println!(" nextblock{}提交: {:?}", trade_type, start_time.elapsed());
+            
+            // Poll for confirmation
+            match crate::swqos::common::poll_transaction_confirmation(&self.rpc_client, signature).await {
+                Ok(confirmed_signature) => {
+                    println!(" nextblock{}确认: {:?}", trade_type, start_time.elapsed());
+                    Ok(confirmed_signature)
+                }
+                Err(e) => {
+                    eprintln!(" nextblock{}确认失败: {:?}", trade_type, e);
+                    Err(e)
+                }
+            }
         } else if let Some(_error) = response_json.get("error") {
             eprintln!(" nextblock{}提交失败: {:?}", trade_type, _error);
-            return Err(anyhow::anyhow!("nextblock submission failed: {:?}", _error));
+            Err(anyhow::anyhow!("nextblock submission failed: {:?}", _error))
         } else if let Some(reason) = response_json.get("reason") {
             eprintln!(" nextblock{}提交失败: {:?}", trade_type, reason);
-            return Err(anyhow::anyhow!("nextblock submission failed: {:?}", reason));
+            Err(anyhow::anyhow!("nextblock submission failed: {:?}", reason))
         } else {
             eprintln!(" nextblock{}未知响应格式: {}", trade_type, response_text);
-            return Err(anyhow::anyhow!("nextblock unexpected response format: {}", response_text));
+            Err(anyhow::anyhow!("nextblock unexpected response format: {}", response_text))
         }
-
-        println!(" nextblock{}签名: {:?}", trade_type, signature);
-        Ok(signature)
     }
 
     pub async fn send_transactions(&self, trade_type: TradeType, transactions: &Vec<VersionedTransaction>) -> Result<Vec<Signature>> {

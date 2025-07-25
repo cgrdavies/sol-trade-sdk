@@ -8,9 +8,11 @@ use solana_sdk::{
 };
 use solana_transaction_status::UiTransactionEncoding;
 
-use crate::{common::SolanaRpcClient, swqos::{SwqosType, TradeType}};
+use crate::common::SolanaRpcClient;
+use crate::swqos::{SwqosType, TradeType};
 use crate::swqos::SwqosClientTrait;
-use anyhow::Result;
+use anyhow::{anyhow, Result};
+use std::time::Instant;
 
 #[derive(Clone)]
 pub struct SolRpcClient {
@@ -20,16 +22,25 @@ pub struct SolRpcClient {
 #[async_trait::async_trait]
 impl SwqosClientTrait for SolRpcClient {
     async fn send_transaction(&self, trade_type: TradeType, transaction: &VersionedTransaction) -> Result<Signature> {
-        let signature = self.rpc_client.send_transaction_with_config(transaction, RpcSendTransactionConfig{
-            skip_preflight: true,
-            preflight_commitment: Some(CommitmentLevel::Processed),
-            encoding: Some(UiTransactionEncoding::Base64),
-            max_retries: Some(3),
-            min_context_slot: Some(0),
-        }).await?;
+        let start_time = Instant::now();
+        let signature = self.rpc_client
+            .send_transaction(transaction)
+            .await
+            .map_err(|e| anyhow!("SolanaRPC transaction submission failed: {}", e))?;
 
-        println!(" rpc{}签名: {:?}", trade_type, signature);
-        Ok(signature)
+        println!(" solana_rpc{}提交: {:?}", trade_type, start_time.elapsed());
+
+        // Poll for confirmation
+        match crate::swqos::common::poll_transaction_confirmation(&self.rpc_client, signature).await {
+            Ok(confirmed_signature) => {
+                println!(" solana_rpc{}确认: {:?}", trade_type, start_time.elapsed());
+                Ok(confirmed_signature)
+            }
+            Err(e) => {
+                eprintln!(" solana_rpc{}确认失败: {:?}", trade_type, e);
+                Err(e)
+            }
+        }
     }
 
     async fn send_transactions(&self, trade_type: TradeType, transactions: &Vec<VersionedTransaction>) -> Result<Vec<Signature>> {

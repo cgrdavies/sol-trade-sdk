@@ -1,4 +1,5 @@
 use anyhow::{anyhow, Result};
+use futures::future::select_all;
 use solana_hash::Hash;
 use solana_sdk::{instruction::Instruction, pubkey::Pubkey, signature::{Keypair, Signature}};
 use std::{str::FromStr, sync::Arc};
@@ -14,7 +15,7 @@ use crate::{
     },
 };
 
-/// 并行执行交易的通用函数
+/// 并行执行交易的通用函数 - 返回第一个成功确认的交易签名
 pub async fn parallel_execute_with_tips(
     swqos_clients: Vec<Arc<SwqosClient>>,
     payer: Arc<Keypair>,
@@ -24,7 +25,7 @@ pub async fn parallel_execute_with_tips(
     recent_blockhash: Hash,
     data_size_limit: u32,
     trade_type: TradeType,
-) -> Result<Vec<Signature>> {
+) -> Result<Signature> {
     let cores = core_affinity::get_core_ids().unwrap();
     let mut handles: Vec<JoinHandle<Result<Signature>>> = vec![];
 
@@ -105,28 +106,33 @@ pub async fn parallel_execute_with_tips(
         handles.push(handle);
     }
 
-    // 等待所有任务完成并收集成功的签名
-    let mut signatures = Vec::new();
+    // 等待第一个成功的任务完成
     let mut errors = Vec::new();
+    let mut remaining_handles = handles;
     
-    for handle in handles {
-        match handle.await {
-            Ok(Ok(signature)) => signatures.push(signature),
-            Ok(Err(e)) => errors.push(format!("Task error: {}", e)),
-            Err(e) => errors.push(format!("Join error: {}", e)),
+    while !remaining_handles.is_empty() {
+        let (result, _index, remaining) = select_all(remaining_handles).await;
+        remaining_handles = remaining;
+        
+        match result {
+            Ok(Ok(signature)) => {
+                println!("成功获得第一个确认的交易签名: {}", signature);
+                // Cancel remaining tasks
+                for handle in remaining_handles {
+                    handle.abort();
+                }
+                return Ok(signature);
+            }
+            Ok(Err(e)) => {
+                errors.push(format!("Task error: {}", e));
+                println!("任务失败: {}", e);
+            }
+            Err(e) => {
+                errors.push(format!("Join error: {}", e));
+                println!("任务连接错误: {}", e);
+            }
         }
     }
 
-    if signatures.is_empty() {
-        return Err(anyhow!("All tasks failed: {:?}", errors));
-    }
-
-    if !errors.is_empty() {
-        for error in &errors {
-            println!("Warning: {}", error);
-        }
-        println!("Successfully submitted {} out of {} transactions", signatures.len(), signatures.len() + errors.len());
-    }
-
-    Ok(signatures)
+    Err(anyhow!("所有任务都失败了: {:?}", errors))
 }

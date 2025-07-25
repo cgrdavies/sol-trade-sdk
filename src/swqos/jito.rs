@@ -9,7 +9,7 @@ use std::time::Duration;
 use solana_transaction_status::UiTransactionEncoding;
 use solana_sdk::signature::Signature;
 
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use solana_sdk::transaction::VersionedTransaction;
 use crate::swqos::{SwqosType, TradeType};
 use crate::swqos::SwqosClientTrait;
@@ -93,16 +93,25 @@ impl JitoClient {
         
         if response_json.get("result").is_some() {
             println!(" jito{}提交: {:?}", trade_type, start_time.elapsed());
+            
+            // Poll for confirmation
+            match crate::swqos::common::poll_transaction_confirmation(&self.rpc_client, signature).await {
+                Ok(confirmed_signature) => {
+                    println!(" jito{}确认: {:?}", trade_type, start_time.elapsed());
+                    Ok(confirmed_signature)
+                }
+                Err(e) => {
+                    eprintln!(" jito{}确认失败: {:?}", trade_type, e);
+                    Err(e)
+                }
+            }
         } else if let Some(_error) = response_json.get("error") {
             eprintln!(" jito{}提交失败: {:?}", trade_type, _error);
-            return Err(anyhow::anyhow!("jito submission failed: {:?}", _error));
+            Err(anyhow::anyhow!("jito submission failed: {:?}", _error))
         } else {
             eprintln!(" jito{}未知响应格式: {}", trade_type, response_text);
-            return Err(anyhow::anyhow!("jito unexpected response format: {}", response_text));
+            Err(anyhow::anyhow!("jito unexpected response format: {}", response_text))
         }
-
-        println!(" jito{}签名: {:?}", trade_type, signature);
-        Ok(signature)
     }
 
     pub async fn send_transactions(&self, trade_type: TradeType, transactions: &Vec<VersionedTransaction>) -> Result<Vec<Signature>> {

@@ -132,7 +132,7 @@ impl SolanaTrade {
     ///
     /// # Returns
     ///
-    /// Returns `Ok(Vec<Signature>)` containing the transaction signatures if the buy order is successfully executed, or an error if the transaction fails.
+    /// Returns `Ok(Signature)` containing the transaction signature if the buy order is successfully executed, or an error if the transaction fails.
     ///
     /// # Errors
     ///
@@ -154,7 +154,7 @@ impl SolanaTrade {
     /// let slippage = Some(500); // 5% slippage
     /// let recent_blockhash = Hash::default();
     ///
-    /// let signatures = solana_trade.buy(
+    /// let signature = solana_trade.buy(
     ///     DexType::PumpFun,
     ///     mint,
     ///     None,
@@ -175,7 +175,7 @@ impl SolanaTrade {
         recent_blockhash: Hash,
         custom_buy_tip_fee: Option<f64>,
         extension_params: Option<Box<dyn ProtocolParams>>,
-    ) -> Result<Vec<Signature>, anyhow::Error> {
+    ) -> Result<Signature, anyhow::Error> {
         let executor = TradeFactory::create_executor(dex_type.clone());
         let protocol_params = if let Some(params) = extension_params {
             params
@@ -255,7 +255,7 @@ impl SolanaTrade {
     ///
     /// # Returns
     ///
-    /// Returns `Ok(Vec<Signature>)` containing the transaction signatures if the sell order is successfully executed, or an error if the transaction fails.
+    /// Returns `Ok(Signature)` containing the transaction signature if the sell order is successfully executed, or an error if the transaction fails.
     ///
     /// # Errors
     ///
@@ -278,7 +278,7 @@ impl SolanaTrade {
     /// let slippage = Some(500); // 5% slippage
     /// let recent_blockhash = Hash::default();
     ///
-    /// let signatures = solana_trade.sell(
+    /// let signature = solana_trade.sell(
     ///     DexType::PumpFun,
     ///     mint,
     ///     None,
@@ -299,7 +299,7 @@ impl SolanaTrade {
         recent_blockhash: Hash,
         custom_buy_tip_fee: Option<f64>,
         extension_params: Option<Box<dyn ProtocolParams>>,
-    ) -> Result<Vec<Signature>, anyhow::Error> {
+    ) -> Result<Signature, anyhow::Error> {
         let executor = TradeFactory::create_executor(dex_type.clone());
         let protocol_params = if let Some(params) = extension_params {
             params
@@ -383,7 +383,7 @@ impl SolanaTrade {
     ///
     /// # Returns
     ///
-    /// Returns `Ok(Vec<Signature>)` containing the transaction signatures if the sell order is successfully executed, or an error if the transaction fails.
+    /// Returns `Ok(Signature)` containing the transaction signature if the sell order is successfully executed, or an error if the transaction fails.
     ///
     /// # Errors
     ///
@@ -409,7 +409,7 @@ impl SolanaTrade {
     /// let recent_blockhash = Hash::default();
     ///
     /// // This will sell 5_000_000 tokens (50% of 10_000_000)
-    /// let signatures = solana_trade.sell_by_percent(
+    /// let signature = solana_trade.sell_by_percent(
     ///     DexType::PumpFun,
     ///     mint,
     ///     None,
@@ -432,7 +432,7 @@ impl SolanaTrade {
         recent_blockhash: Hash,
         custom_buy_tip_fee: Option<f64>,
         extension_params: Option<Box<dyn ProtocolParams>>,
-    ) -> Result<Vec<Signature>, anyhow::Error> {
+    ) -> Result<Signature, anyhow::Error> {
         if percent == 0 || percent > 100 {
             return Err(anyhow::anyhow!("Percentage must be between 1 and 100"));
         }

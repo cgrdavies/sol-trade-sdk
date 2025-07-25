@@ -8,14 +8,14 @@ pub trait TradeExecutor: Send + Sync {
     /// 执行买入交易
     async fn buy(&self, params: BuyParams) -> Result<Signature>;
 
-    /// 使用MEV服务执行买入交易
-    async fn buy_with_tip(&self, params: BuyWithTipParams) -> Result<Vec<Signature>>;
+    /// 使用MEV服务执行买入交易 - 返回第一个成功确认的交易签名
+    async fn buy_with_tip(&self, params: BuyWithTipParams) -> Result<Signature>;
 
     /// 执行卖出交易
     async fn sell(&self, params: SellParams) -> Result<Signature>;
 
-    /// 使用MEV服务执行卖出交易
-    async fn sell_with_tip(&self, params: SellWithTipParams) -> Result<Vec<Signature>>;
+    /// 使用MEV服务执行卖出交易 - 返回第一个成功确认的交易签名
+    async fn sell_with_tip(&self, params: SellWithTipParams) -> Result<Signature>;
 
     /// 获取协议名称
     fn protocol_name(&self) -> &'static str;
