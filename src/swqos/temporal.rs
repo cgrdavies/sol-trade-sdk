@@ -62,7 +62,7 @@ impl TemporalClient {
     pub async fn send_transaction(&self, trade_type: TradeType, transaction: &VersionedTransaction) -> Result<Signature> {
         let start_time = Instant::now();
         let (content, signature) = serialize_transaction_and_encode(transaction, UiTransactionEncoding::Base64).await?;
-        println!(" 交易编码base64: {:?}", start_time.elapsed());
+        println!(" Transaction base64 encoding: {:?}", start_time.elapsed());
 
         let request_body = serde_json::to_string(&json!({
             "jsonrpc": "2.0",
@@ -91,16 +91,16 @@ impl TemporalClient {
             .map_err(|e| anyhow::anyhow!("Failed to parse temporal response as JSON: {} - Response: {}", e, response_text))?;
         
         if response_json.get("result").is_some() {
-            println!(" nozomi{}提交: {:?}", trade_type, start_time.elapsed());
+            println!(" nozomi{} submission: {:?}", trade_type, start_time.elapsed());
         } else if let Some(_error) = response_json.get("error") {
-            eprintln!(" nozomi{}提交失败: {:?}", trade_type, _error);
+            eprintln!(" nozomi{} submission failed: {:?}", trade_type, _error);
             return Err(anyhow::anyhow!("nozomi submission failed: {:?}", _error));
         } else {
-            eprintln!(" nozomi{}未知响应格式: {}", trade_type, response_text);
+            eprintln!(" nozomi{} unexpected response format: {}", trade_type, response_text);
             return Err(anyhow::anyhow!("nozomi unexpected response format: {}", response_text));
         }
 
-        println!(" nozomi{}签名: {:?}", trade_type, signature);
+        println!(" nozomi{} signature: {:?}", trade_type, signature);
         Ok(signature)
     }
 

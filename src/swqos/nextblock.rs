@@ -87,27 +87,27 @@ impl NextBlockClient {
 
         // NextBlock can return different formats - check for both JSON-RPC and direct response
         if response_json.get("result").is_some() || response_json.get("signature").is_some() {
-            println!(" nextblock{}提交: {:?}", trade_type, start_time.elapsed());
+            println!(" nextblock{} submission: {:?}", trade_type, start_time.elapsed());
             
             // Poll for confirmation
             match crate::swqos::common::poll_transaction_confirmation(&self.rpc_client, signature).await {
                 Ok(confirmed_signature) => {
-                    println!(" nextblock{}确认: {:?}", trade_type, start_time.elapsed());
+                    println!(" nextblock{} confirmation: {:?}", trade_type, start_time.elapsed());
                     Ok(confirmed_signature)
                 }
                 Err(e) => {
-                    eprintln!(" nextblock{}确认失败: {:?}", trade_type, e);
+                    eprintln!(" nextblock{} confirmation failed: {:?}", trade_type, e);
                     Err(e)
                 }
             }
         } else if let Some(_error) = response_json.get("error") {
-            eprintln!(" nextblock{}提交失败: {:?}", trade_type, _error);
+            eprintln!(" nextblock{} submission failed: {:?}", trade_type, _error);
             Err(anyhow::anyhow!("nextblock submission failed: {:?}", _error))
         } else if let Some(reason) = response_json.get("reason") {
-            eprintln!(" nextblock{}提交失败: {:?}", trade_type, reason);
+            eprintln!(" nextblock{} submission failed: {:?}", trade_type, reason);
             Err(anyhow::anyhow!("nextblock submission failed: {:?}", reason))
         } else {
-            eprintln!(" nextblock{}未知响应格式: {}", trade_type, response_text);
+            eprintln!(" nextblock{} unexpected response format: {}", trade_type, response_text);
             Err(anyhow::anyhow!("nextblock unexpected response format: {}", response_text))
         }
     }

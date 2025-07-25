@@ -82,34 +82,35 @@ pub async fn transfer_sol(
     Ok(())
 }
 
-/// 关闭代币账户
+/// Close token account
 ///
-/// 此函数用于关闭指定代币的关联代币账户，将账户中的代币余额转移给账户所有者。
+/// This function is used to close the associated token account for a specified token,
+/// transferring the remaining token balance to the account owner.
 ///
-/// # 参数
+/// # Parameters
 ///
-/// * `rpc` - Solana RPC客户端
-/// * `payer` - 支付交易费用的账户
-/// * `mint` - 代币的Mint地址
+/// * `rpc` - Solana RPC client
+/// * `payer` - Account that pays for transaction fees
+/// * `mint` - Token mint address
 ///
-/// # 返回值
+/// # Return Value
 ///
-/// 返回一个Result，成功时返回()，失败时返回错误
+/// Returns a Result, success returns (), failure returns error
 pub async fn close_token_account(
     rpc: &SolanaRpcClient,
     payer: &Keypair,
     mint: &Pubkey,
 ) -> Result<(), anyhow::Error> {
-    // 获取关联代币账户地址
+    // Get associated token account address
     let ata = get_associated_token_address(&payer.pubkey(), mint);
 
-    // 检查账户是否存在
+    // Check if account exists
     let account_exists = rpc.get_account(&ata).await.is_ok();
     if !account_exists {
-        return Ok(()); // 如果账户不存在，直接返回成功
+        return Ok(()); // If account doesn't exist, return success directly
     }
 
-    // 构建关闭账户指令
+    // Build close account instruction
     let close_account_ix = close_account(
         &spl_token::ID,
         &ata,
@@ -118,7 +119,7 @@ pub async fn close_token_account(
         &[&payer.pubkey()],
     )?;
 
-    // 构建交易
+    // Build transaction
     let recent_blockhash = rpc.get_latest_blockhash().await?;
     let transaction = Transaction::new_signed_with_payer(
         &[close_account_ix],
@@ -127,7 +128,7 @@ pub async fn close_token_account(
         recent_blockhash,
     );
 
-    // 发送交易
+    // Send transaction
     rpc.send_and_confirm_transaction(&transaction).await?;
 
     Ok(())

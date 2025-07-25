@@ -43,15 +43,15 @@ impl TradeExecutor for GenericTradeExecutor {
             return Err(anyhow!("RPC is not set"));
         }
         let rpc = params.rpc.as_ref().unwrap().clone();
-        let mut timer = TradeTimer::new("构建买入交易指令");
-        // 构建指令
+        let mut timer = TradeTimer::new("Building buy transaction instruction");
+        // Build instructions
         let instructions = self
             .instruction_builder
             .build_buy_instructions(&params)
             .await?;
-        timer.stage("构建rpc交易指令");
+        timer.stage("Building RPC transaction instruction");
 
-        // 构建交易
+        // Build transaction
         let transaction = build_rpc_transaction(
             params.payer.clone(),
             &params.priority_fee,
@@ -61,9 +61,9 @@ impl TradeExecutor for GenericTradeExecutor {
             params.data_size_limit,
         )
         .await?;
-        timer.stage("rpc提交确认");
+        timer.stage("RPC submission and confirmation");
 
-        // 发送交易
+        // Send transaction
         let signature = rpc.send_and_confirm_transaction(&transaction).await?;
         timer.finish();
 
@@ -74,7 +74,7 @@ impl TradeExecutor for GenericTradeExecutor {
         if params.data_size_limit == 0 {
             params.data_size_limit = MAX_LOADED_ACCOUNTS_DATA_SIZE_LIMIT;
         }
-        let timer = TradeTimer::new("构建买入交易指令");
+        let timer = TradeTimer::new("Building buy transaction instruction");
 
         // 验证参数 - 转换为BuyParams进行验证
         let buy_params = BuyParams {
@@ -120,14 +120,14 @@ impl TradeExecutor for GenericTradeExecutor {
             return Err(anyhow!("RPC is not set"));
         }
         let rpc = params.rpc.as_ref().unwrap().clone();
-        let mut timer = TradeTimer::new("构建卖出交易指令");
+        let mut timer = TradeTimer::new("Building sell transaction instruction");
 
         // 构建指令
         let instructions = self
             .instruction_builder
             .build_sell_instructions(&params)
             .await?;
-        timer.stage("卖出交易指令");
+        timer.stage("Sell transaction instruction");
 
         // 构建交易
         let transaction = build_sell_transaction(
@@ -138,7 +138,7 @@ impl TradeExecutor for GenericTradeExecutor {
             params.recent_blockhash,
         )
         .await?;
-        timer.stage("卖出交易签名");
+        timer.stage("Sell transaction signature");
 
         // 发送交易
         let signature = rpc.send_and_confirm_transaction(&transaction).await?;
@@ -148,7 +148,7 @@ impl TradeExecutor for GenericTradeExecutor {
     }
 
     async fn sell_with_tip(&self, params: SellWithTipParams) -> Result<Signature> {
-        let timer = TradeTimer::new("构建卖出交易指令");
+        let timer = TradeTimer::new("Building sell transaction instruction");
 
         // 转换为SellParams进行指令构建
         let sell_params = SellParams {

@@ -61,7 +61,7 @@ impl BloxrouteClient {
     pub async fn send_transaction(&self, trade_type: TradeType, transaction: &VersionedTransaction) -> Result<Signature> {
         let start_time = Instant::now();
         let (content, signature) = serialize_transaction_and_encode(transaction, UiTransactionEncoding::Base64).await?;
-        println!(" 交易编码base64: {:?}", start_time.elapsed());
+        println!(" Transaction base64 encoding: {:?}", start_time.elapsed());
 
         let body = serde_json::json!({
             "transaction": {
@@ -85,22 +85,22 @@ impl BloxrouteClient {
             .map_err(|e| anyhow::anyhow!("Failed to parse bloxroute response as JSON: {} - Response: {}", e, response_text))?;
         
         if response_json.get("result").is_some() {
-            println!(" bloxroute{}提交: {:?}", trade_type, start_time.elapsed());
+            println!(" bloxroute{} submission: {:?}", trade_type, start_time.elapsed());
         } else if let Some(_error) = response_json.get("error") {
-            eprintln!(" bloxroute{}提交失败: {:?}", trade_type, _error);
+            eprintln!(" bloxroute{} submission failed: {:?}", trade_type, _error);
             return Err(anyhow::anyhow!("bloxroute submission failed: {:?}", _error));
         } else {
-            eprintln!(" bloxroute{}未知响应格式: {}", trade_type, response_text);
+            eprintln!(" bloxroute{} unexpected response format: {}", trade_type, response_text);
             return Err(anyhow::anyhow!("bloxroute unexpected response format: {}", response_text));
         }
 
-        println!(" bloxroute{}签名: {:?}", trade_type, signature);
+        println!(" bloxroute{} signature: {:?}", trade_type, signature);
         Ok(signature)
     }
 
     pub async fn send_transactions(&self, trade_type: TradeType, transactions: &Vec<VersionedTransaction>) -> Result<Vec<Signature>> {
         let start_time = Instant::now();
-        println!(" 交易编码base64: {:?}", start_time.elapsed());
+        println!(" Transaction base64 encoding: {:?}", start_time.elapsed());
 
         // Extract signatures from all transactions
         let mut signatures = Vec::new();
@@ -136,16 +136,16 @@ impl BloxrouteClient {
             .map_err(|e| anyhow::anyhow!("Failed to parse bloxroute batch response as JSON: {} - Response: {}", e, response_text))?;
         
         if response_json.get("result").is_some() {
-            println!(" bloxroute{}提交: {:?}", trade_type, start_time.elapsed());
+            println!(" bloxroute{} submission: {:?}", trade_type, start_time.elapsed());
         } else if let Some(_error) = response_json.get("error") {
-            eprintln!(" bloxroute{}提交失败: {:?}", trade_type, _error);
+            eprintln!(" bloxroute{} submission failed: {:?}", trade_type, _error);
             return Err(anyhow::anyhow!("bloxroute batch submission failed: {:?}", _error));
         } else {
-            eprintln!(" bloxroute{}未知响应格式: {}", trade_type, response_text);
+            eprintln!(" bloxroute{} unexpected response format: {}", trade_type, response_text);
             return Err(anyhow::anyhow!("bloxroute batch unexpected response format: {}", response_text));
         }
 
-        println!(" bloxroute{}签名数量: {}", trade_type, signatures.len());
+        println!(" bloxroute{} signature count: {}", trade_type, signatures.len());
         Ok(signatures)
     }
 }

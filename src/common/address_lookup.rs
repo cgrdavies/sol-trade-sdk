@@ -114,7 +114,7 @@ pub async fn get_address_lookup_table(
     };
 
     for (i, addr) in address_lookup_table_account.addresses.iter().enumerate() {
-        println!("地址 {}: {}", i, addr);
+        println!("Address {}: {}", i, addr);
     }
 
     Ok(address_lookup_table_account)
@@ -141,7 +141,7 @@ pub async fn send_transaction_with_lut(
 
     let signature = client.send_and_confirm_transaction(&tx).await?;
 
-    println!("交易已确认: {}", signature);
+    println!("Transaction confirmed: {}", signature);
     Ok(())
 }
 
@@ -161,11 +161,11 @@ pub async fn send_transaction_with_filtered_lut(
         .collect();
 
     println!(
-        "从查找表中选择了 {} 个地址用于交易",
+        "Selected {} addresses for transaction from lookup table",
         filtered_addresses.len()
     );
     for (i, addr) in filtered_addresses.iter().enumerate() {
-        println!("使用地址 {}: {}", i, addr);
+        println!("Using address {}: {}", i, addr);
     }
 
     let filtered_lookup_table = AddressLookupTableAccount {
@@ -186,7 +186,7 @@ pub async fn send_transaction_with_filtered_lut(
 
     let signature = client.send_and_confirm_transaction(&tx).await?;
 
-    println!("交易已确认: {}", signature);
+    println!("Transaction confirmed: {}", signature);
     Ok(())
 }
 
@@ -240,9 +240,9 @@ pub async fn send_transaction_with_addresses(
 
     // 检查是否有地址未找到
     if !missing_addresses.is_empty() {
-        println!("警告: {} 个地址未在查找表中找到", missing_addresses.len());
+        println!("Warning: {} addresses not found in lookup table", missing_addresses.len());
         for (i, addr) in missing_addresses.iter().enumerate() {
-            println!("未找到的地址 {}: {}", i, addr);
+            println!("Missing address {}: {}", i, addr);
         }
     }
 
@@ -250,7 +250,7 @@ pub async fn send_transaction_with_addresses(
     if indices_to_use.is_empty() {
         return Err(Box::new(std::io::Error::new(
             std::io::ErrorKind::NotFound,
-            "没有在查找表中找到任何指定的地址",
+            "No specified addresses found in lookup table",
         )));
     }
 
@@ -261,11 +261,11 @@ pub async fn send_transaction_with_addresses(
         .collect();
 
     println!(
-        "从查找表中选择了 {} 个地址用于交易",
+        "Selected {} addresses for transaction from lookup table",
         filtered_addresses.len()
     );
     for (i, addr) in filtered_addresses.iter().enumerate() {
-        println!("使用地址 {}: {}", i, addr);
+        println!("Using address {}: {}", i, addr);
     }
 
     let filtered_lookup_table = AddressLookupTableAccount {
@@ -286,7 +286,7 @@ pub async fn send_transaction_with_addresses(
 
     let signature = client.send_and_confirm_transaction(&tx).await?;
 
-    println!("交易已确认: {}", signature);
+    println!("Transaction confirmed: {}", signature);
     Ok(signature.to_string())
 }
 

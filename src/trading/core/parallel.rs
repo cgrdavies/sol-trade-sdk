@@ -15,7 +15,7 @@ use crate::{
     },
 };
 
-/// 并行执行交易的通用函数 - 返回第一个成功确认的交易签名
+/// Parallel execution function for transactions - returns the first successfully confirmed transaction signature
 pub async fn parallel_execute_with_tips(
     swqos_clients: Vec<Arc<SwqosClient>>,
     payer: Arc<Keypair>,
@@ -39,7 +39,7 @@ pub async fn parallel_execute_with_tips(
         let handle = tokio::spawn(async move {
             core_affinity::set_for_current(core_id);
 
-            let mut timer = TradeTimer::new(format!("构建交易指令: {:?}", swqos_client.get_swqos_type()));
+            let mut timer = TradeTimer::new(format!("Building transaction instruction: {:?}", swqos_client.get_swqos_type()));
 
             let transaction = if matches!(trade_type, TradeType::Sell)
                 && swqos_client.get_swqos_type() == SwqosType::Default
@@ -48,20 +48,6 @@ pub async fn parallel_execute_with_tips(
                     payer,
                     &priority_fee,
                     instructions,
-                    lookup_table_key,
-                    recent_blockhash,
-                )
-                .await?
-            } else if matches!(trade_type, TradeType::Sell)
-                && swqos_client.get_swqos_type() != SwqosType::Default
-            {
-                let tip_account = swqos_client.get_tip_account()?;
-                let tip_account = Arc::new(Pubkey::from_str(&tip_account).map_err(|e| anyhow!(e))?);
-                build_sell_tip_transaction_with_priority_fee(
-                    payer,
-                    &priority_fee,
-                    instructions,
-                    &tip_account,
                     lookup_table_key,
                     recent_blockhash,
                 )
@@ -77,23 +63,33 @@ pub async fn parallel_execute_with_tips(
                 )
                 .await?
             } else {
-                let tip_account = swqos_client.get_tip_account()?;
-                let tip_account = Arc::new(Pubkey::from_str(&tip_account).map_err(|e| anyhow!(e))?);
-                priority_fee.buy_tip_fee = priority_fee.buy_tip_fees[i];
+                let tip_account = Pubkey::from_str(&swqos_client.get_tip_account()?)?;
 
-                build_tip_transaction_with_priority_fee(
-                    payer,
-                    &priority_fee,
-                    instructions,
-                    &tip_account,
-                    lookup_table_key,
-                    recent_blockhash,
-                    data_size_limit,
-                )
-                .await?
+                if matches!(trade_type, TradeType::Sell) {
+                    build_sell_tip_transaction_with_priority_fee(
+                        payer.clone(),
+                        &priority_fee,
+                        instructions,
+                        &tip_account,
+                        lookup_table_key,
+                        recent_blockhash,
+                    )
+                    .await?
+                } else {
+                    build_tip_transaction_with_priority_fee(
+                        payer.clone(),
+                        &priority_fee,
+                        instructions,
+                        &tip_account,
+                        lookup_table_key,
+                        recent_blockhash,
+                        data_size_limit,
+                    )
+                    .await?
+                }
             };
 
-            timer.stage(format!("提交交易指令: {:?}", swqos_client.get_swqos_type()));
+            timer.stage(format!("Submitting transaction instruction: {:?}", swqos_client.get_swqos_type()));
 
             let signature = swqos_client
                 .send_transaction(trade_type, &transaction)
@@ -106,7 +102,7 @@ pub async fn parallel_execute_with_tips(
         handles.push(handle);
     }
 
-    // 等待第一个成功的任务完成
+    // Wait for the first successful task to complete
     let mut errors = Vec::new();
     let mut remaining_handles = handles;
     
@@ -116,7 +112,7 @@ pub async fn parallel_execute_with_tips(
         
         match result {
             Ok(Ok(signature)) => {
-                println!("成功获得第一个确认的交易签名: {}", signature);
+                println!("Successfully obtained first confirmed transaction signature: {}", signature);
                 // Cancel remaining tasks
                 for handle in remaining_handles {
                     handle.abort();
@@ -125,14 +121,14 @@ pub async fn parallel_execute_with_tips(
             }
             Ok(Err(e)) => {
                 errors.push(format!("Task error: {}", e));
-                println!("任务失败: {}", e);
+                println!("Task failed: {}", e);
             }
             Err(e) => {
                 errors.push(format!("Join error: {}", e));
-                println!("任务连接错误: {}", e);
+                println!("Task join error: {}", e);
             }
         }
     }
 
-    Err(anyhow!("所有任务都失败了: {:?}", errors))
+    Err(anyhow!("All tasks failed: {:?}", errors))
 }

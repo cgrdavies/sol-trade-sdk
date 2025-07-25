@@ -28,16 +28,16 @@ impl SwqosClientTrait for SolRpcClient {
             .await
             .map_err(|e| anyhow!("SolanaRPC transaction submission failed: {}", e))?;
 
-        println!(" solana_rpc{}提交: {:?}", trade_type, start_time.elapsed());
+        println!(" solana_rpc{} submission: {:?}", trade_type, start_time.elapsed());
 
         // Poll for confirmation
         match crate::swqos::common::poll_transaction_confirmation(&self.rpc_client, signature).await {
             Ok(confirmed_signature) => {
-                println!(" solana_rpc{}确认: {:?}", trade_type, start_time.elapsed());
+                println!(" solana_rpc{} confirmation: {:?}", trade_type, start_time.elapsed());
                 Ok(confirmed_signature)
             }
             Err(e) => {
-                eprintln!(" solana_rpc{}确认失败: {:?}", trade_type, e);
+                eprintln!(" solana_rpc{} confirmation failed: {:?}", trade_type, e);
                 Err(e)
             }
         }
@@ -55,7 +55,7 @@ impl SwqosClientTrait for SolRpcClient {
             }).await?;
             signatures.push(signature);
         }
-        println!(" rpc{}签名数量: {}", trade_type, signatures.len());
+        println!(" rpc{} signature count: {}", trade_type, signatures.len());
         Ok(signatures)
     }
 

@@ -62,7 +62,7 @@ pub async fn get_buy_token_amount(
     };
 
     if reserve_in == 0 || reserve_out == 0 {
-        return Err(anyhow!("池子储备金为零，无法进行交换"));
+        return Err(anyhow!("Pool reserves are zero, cannot perform swap"));
     }
 
     // 使用 u128 防止溢出
@@ -75,14 +75,14 @@ pub async fn get_buy_token_amount(
     let denominator = reserve_in_128 + amount_in_128;
 
     if denominator == 0 {
-        return Err(anyhow!("分母为零，计算错误"));
+        return Err(anyhow!("Denominator is zero, calculation error"));
     }
 
     let amount_out = numerator / denominator;
 
     // 检查是否超出储备金
     if amount_out >= reserve_out_128 {
-        return Err(anyhow!("输出数量超过池子储备金"));
+        return Err(anyhow!("Output amount exceeds pool reserves"));
     }
 
     Ok(amount_out as u64)
@@ -109,7 +109,7 @@ pub async fn get_sell_sol_amount(
     };
 
     if reserve_in == 0 || reserve_out == 0 {
-        return Err(anyhow!("池子储备金为零，无法进行交换"));
+        return Err(anyhow!("Pool reserves are zero, cannot perform swap"));
     }
 
     // 使用 u128 防止溢出
@@ -122,14 +122,14 @@ pub async fn get_sell_sol_amount(
     let denominator = reserve_in_128 + amount_in_128;
 
     if denominator == 0 {
-        return Err(anyhow!("分母为零，计算错误"));
+        return Err(anyhow!("Denominator is zero, calculation error"));
     }
 
     let amount_out = numerator / denominator;
 
     // 检查是否超出储备金
     if amount_out >= reserve_out_128 {
-        return Err(anyhow!("输出数量超过池子储备金"));
+        return Err(anyhow!("Output amount exceeds pool reserves"));
     }
 
     Ok(amount_out as u64)
@@ -150,16 +150,16 @@ pub async fn get_pool_token_balances(
     let token1_vault = get_vault_pda(pool_state, token1_mint).unwrap();
     let token1_balance = rpc.get_token_account_balance(&token1_vault).await?;
 
-    // 解析余额字符串为 u64
+    // Parse balance strings to u64
     let token0_amount = token0_balance
         .amount
         .parse::<u64>()
-        .map_err(|e| anyhow!("解析 token0 余额失败: {}", e))?;
+        .map_err(|e| anyhow!("Failed to parse token0 balance: {}", e))?;
 
     let token1_amount = token1_balance
         .amount
         .parse::<u64>()
-        .map_err(|e| anyhow!("解析 token1 余额失败: {}", e))?;
+        .map_err(|e| anyhow!("Failed to parse token1 balance: {}", e))?;
 
     Ok((token0_amount, token1_amount))
 }
@@ -175,7 +175,7 @@ pub async fn calculate_price(
     mint1_decimals: u8,
 ) -> Result<f64, anyhow::Error> {
     if token0_amount == 0 {
-        return Err(anyhow!("Token0 余额为零，无法计算价格"));
+        return Err(anyhow!("Token0 balance is zero, cannot calculate price"));
     }
     // 考虑小数位精度
     let token0_adjusted = token0_amount as f64 / 10_f64.powi(mint0_decimals as i32);
